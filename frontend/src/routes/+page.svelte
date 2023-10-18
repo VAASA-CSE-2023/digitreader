@@ -147,7 +147,9 @@
     <option value="fr-FR">Franch</option>
     <option value="en-US">English</option>
     <option value="es-ES">Spainish</option>
-    <option value="ja-JP" selected>Japanese</option>
+    <option value="ja-JP" >Japanese</option>
+    <option value="de-DE">German</option>
+    <option value="ru-RU" selected>Russian</option>
 </select>
 
 <button disabled={doing} on:click={doUpload}>Go</button>
