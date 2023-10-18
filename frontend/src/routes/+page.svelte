@@ -13,41 +13,27 @@
             return;
         }
         doing = true;
-        fetch("http://localhost:30080", {
-            method: "POST",
-            headers: {
-                src: "en-US",
-                target: target,
-            },
-            body: files[0],
-        })
-            .then((res) => {
-                console.log(res.status);
-                translated = res.headers.get("X-Translated");
-                return res.blob();
-            })
-            .then((b) => blobToBase64(b))
-            .then((s) => {
-                audioSrc =  s;
-            })
-            .catch((e) => alert(e));
-        // let xhr = new XMLHttpRequest();
-        // xhr.onreadystatechange = function () {
-        //     if (xhr.readyState !== 4) {
-        //         return;
-        //     }
-        //     doing = false;
-        //     if (xhr.status != 200) {
-        //         alert(xhr.status + ": " + xhr.responseText);
-        //         return;
-        //     }
-        //     translated = xhr.getResponseHeader("X-Translated");
-        //     audioSrc = "data:audio/mp3;base64," + btoa(xhr.response);
-        // };
-        // xhr.open("POST", "http://localhost:30080");
-        // xhr.setRequestHeader("src", "en-US");
-        // xhr.setRequestHeader("target", target);
-        // xhr.send(files[0]);
+        let xhr = new XMLHttpRequest();
+        xhr.responseType = "blob";
+        xhr.onreadystatechange = async function () {
+            if (xhr.readyState !== 4) {
+                return;
+            }
+            doing = false;
+            if (xhr.status !== 200) {
+                alert(xhr.responseText);
+                return;
+            }
+
+            translated = decodeURIComponent(
+                xhr.getResponseHeader("X-Translated")!
+            );
+            audioSrc = URL.createObjectURL(xhr.response);
+        };
+        xhr.open("POST", "http://localhost:30080");
+        xhr.setRequestHeader("src", "en-US");
+        xhr.setRequestHeader("target", target);
+        xhr.send(files[0]);
     }
 </script>
 
@@ -57,6 +43,8 @@
 <select name="target" bind:value={target}>
     <option value="fr-FR">Franch</option>
     <option value="en-US">English</option>
+    <option value="es-ES">Spainish</option>
+    <option value="ja-JP">Japanese</option>
 </select>
 
 <button disabled={doing} on:click={doUpload}>Go</button>

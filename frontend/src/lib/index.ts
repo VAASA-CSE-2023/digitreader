@@ -5,3 +5,10 @@ export function blobToBase64(blob: Blob): Promise<string> {
         reader.readAsDataURL(blob);
     });
 }
+
+// export function responseToBlob(res:any):string{
+//     var uInt8Array = new Uint8Array(res);
+   
+//     var base64 = window.btoa(data);
+//     return base64
+// }

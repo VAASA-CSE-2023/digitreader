@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: apigateway
-          image:  zigzigcheers/private_api_gateway:v2
+          image:  zigzigcheers/private_api_gateway:v4
           ports:
           - containerPort: 8080
 
