@@ -4,6 +4,7 @@ WORKDIR /root
 
 ADD tts.py .
 ADD .aws .aws
+ADD index.html .
 
 EXPOSE 8083
 

@@ -1,36 +1,11 @@
-from typing import Union
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, Response
 import uvicorn
 import time
-from keras import models
-from PIL import Image
-import numpy
 import os
-import boto3
-from botocore.response import StreamingBody
-
-model = models.load_model('handwriting.keras')
+import requests
 
 app = FastAPI()
-
-
-def most_common(lst):
-    flatList = [el for sublist in lst for el in sublist]
-    return max(flatList, key=flatList.count)
-
-
-def handleImage(src):
-    pic = numpy.asarray(Image.open(src).convert('L').resize((28, 28)))
-    pic = numpy.array(pic, copy=True)
-    bg = most_common(pic)
-    for i, row in enumerate(pic):
-        for j, v in enumerate(row):
-            if v == bg:
-                pic[i][j] = 0
-            else:
-                pic[i][j] = 255
-    return pic
 
 
 @app.get('/')
@@ -45,27 +20,20 @@ async def readImage(req: Request):
     fo.write(content)
     fo.close()
 
-    pic = handleImage(dst)
-
-    img = numpy.asarray(pic, float)
-    img = numpy.expand_dims(img, axis=0)
-    img = (img/255)-0.5
-    img = numpy.expand_dims(img, axis=3)
-
-    predictions = model.predict(img)
-    labels = numpy.argmax(predictions)
-
+    fi = open(dst, 'rb')
+    res = requests.post('http://ocr-service:8081', fi)
+    fi.close()
     os.remove(dst)
-    return toPlainTextDigit(str(labels))
+    return res.text
 
 
 def doTranslate(text: str, src: str, target: str):
-    cli = boto3.client('translate')
-    return cli.translate_text(
-        Text=text,
-        SourceLanguageCode=src,
-        TargetLanguageCode=target,
-    )['TranslatedText']
+    res = requests.post('http://translator-service:8082', data={
+        'text': text,
+        'sourceLanguageCode': src,
+        'targetLanguageCode': target,
+    })
+    return res.text
 
 
 def doSpeaker(text: str, lang: str):
@@ -74,41 +42,16 @@ def doSpeaker(text: str, lang: str):
     elif lang == 'en':
         lang = 'en-US'
 
-    cli = boto3.client('polly')
-    voiceRes = cli.describe_voices(
-        LanguageCode=lang,
-    )
-    res = cli.synthesize_speech(
-        Engine='standard',
-        LanguageCode=lang,
-        OutputFormat='mp3',
-        Text=text,
-        VoiceId=voiceRes['Voices'][0]['Id']
-    )
+    res = requests.post('http://tts-service:8083', data={
+        'text': text,
+        'languageCode': lang
+    })
 
-    body: StreamingBody = res['AudioStream']
-    dst = 'out.mp3'
+    dst = str(time.time())+'.mp3'
     fo = open(dst, 'wb')
-    fo.write(body.read())
+    fo.write(res.content)
     fo.close()
-    body.close()
     return dst
-
-
-def toPlainTextDigit(s: str):
-    m = {
-        '0': 'zero',
-        '1': 'one',
-        '2': 'two',
-        '3': 'three',
-        '4': 'four',
-        '5': 'five',
-        '6': 'six',
-        '7': 'seven',
-        '8': 'eight',
-        '9': 'one',
-    }
-    return m[s]
 
 
 corsHeaders = {
@@ -116,6 +59,11 @@ corsHeaders = {
     'Access-Control-Allow-Headers': '*',
     'Access-Control-Expose-Headers': '*'
 }
+
+
+@app.get('/')
+async def getHome():
+    return Response('index.html', 200, corsHeaders)
 
 
 @app.options('/')
@@ -128,7 +76,8 @@ async def doHandle(req: Request):
     text: str = await readImage(req)
     print(text)
     target = req.headers['target']
-    translated: str = doTranslate(text, req.headers['src'], target)
+    src = req.headers['src']
+    translated: str = doTranslate(text, src, target)
     filepath: str = doSpeaker(translated, target)
     return FileResponse(filepath, 200, {
         'X-Translated': translated,

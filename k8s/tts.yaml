@@ -1,32 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ocr-deployment
+  name: tts-deployment
 spec:
   selector:
     matchLabels:
-      app: ocr
+      app: tts
   replicas: 1 
   template:
     metadata:
       labels:
-        app: ocr
+        app: tts
     spec:
       containers:
-        - name: ocr
-          image:  zigzigcheers/ocr:v3
+        - name: tts
+          image:  zigzigcheers/private_tts:v2
           ports:
-          - containerPort: 8081
+          - containerPort: 8083
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: ocr-service
+  name: tts-service
 spec:
   selector:
-    app: ocr
+    app: tts
   ports:
-  - targetPort: 8081
-    port: 8081
+  - targetPort: 8083
+    port: 8083
     protocol: TCP
