@@ -72,7 +72,7 @@
             );
             audioSrc = URL.createObjectURL(xhr.response);
         };
-        xhr.open("POST", "http://localhost:30080");
+        xhr.open("POST", "http://digitrecognizer.asuscomm.com:30080");
         xhr.setRequestHeader("src", "en-US");
         xhr.setRequestHeader("target", target);
         xhr.send(file);
