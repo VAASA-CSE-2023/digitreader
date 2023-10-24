@@ -8,18 +8,69 @@ import urllib.parse
 
 app = FastAPI()
 
+# cache the translation result
 cacheMap = {}
+
+# simple circuit break pattern, stores the timestamp of last time that service failed.
 ocrBreaker: float = 0
 translatorBreaker: float = 0
 ttsBreaker: float = 0
 
+corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': '*',
+    'Access-Control-Expose-Headers': '*'
+}
 
-@app.get('/')
-async def getHome():
-    return FileResponse('index.html')
+
+@app.post('/')
+async def doHandle(req: Request):
+    global cacheMap
+    try:
+        text: str = await callOcrService(req)
+        print(text)
+        target = req.headers['target']
+        src = req.headers['src']
+
+        # cacheMap
+        cacheKey = text+src+target
+        if cacheKey in cacheMap:
+            v = cacheMap[cacheKey]
+            return FileResponse(v['filePath'], 200, {
+                'X-Translated': urllib.parse.quote_plus(v['Translated']),
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Expose-Headers': '*'
+            })
+
+        translated = text
+        if not target.startswith('en'):
+            translated = callTranslatorService(text, src, target)
+
+        filepath: str = callTtsService(translated, target)
+
+        # store cache
+        cacheMap[cacheKey] = {
+            'filePath': filepath,
+            'Translated': translated
+        }
+
+        return FileResponse(filepath, 200, {
+            'X-Translated': urllib.parse.quote_plus(translated),
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Expose-Headers': '*'
+        })
+    except Exception as e:
+        print(e)
+        return Response(str(e), 500, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Expose-Headers': '*'
+        })
 
 
-async def doOCR(req: Request):
+async def callOcrService(req: Request):
     global ocrBreaker
     now = time.time()
     if now - ocrBreaker < 10:
@@ -43,7 +94,7 @@ async def doOCR(req: Request):
         raise e
 
 
-def doTranslate(text: str, src: str, target: str):
+def callTranslatorService(text: str, src: str, target: str):
     global translatorBreaker
     now = time.time()
     if now - translatorBreaker < 10:
@@ -61,7 +112,7 @@ def doTranslate(text: str, src: str, target: str):
         raise e
 
 
-def doTTS(text: str, lang: str):
+def callTtsService(text: str, lang: str):
     global ttsBreaker
     now = time.time()
     if now - ttsBreaker < 10:
@@ -89,13 +140,6 @@ def doTTS(text: str, lang: str):
         raise e
 
 
-corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': '*',
-    'Access-Control-Expose-Headers': '*'
-}
-
-
 @app.get('/')
 async def getHome():
     return Response('index.html', 200, corsHeaders)
@@ -105,52 +149,6 @@ async def getHome():
 async def doHeader():
     return Response(None, 200, corsHeaders)
 
-
-@app.post('/')
-async def doHandle(req: Request):
-    global cacheMap
-    try:
-        text: str = await doOCR(req)
-        print(text)
-        target = req.headers['target']
-        src = req.headers['src']
-
-        # cacheMap
-        cacheKey = text+src+target
-        if cacheKey in cacheMap:
-            v = cacheMap[cacheKey]
-            return FileResponse(v['filePath'], 200, {
-                'X-Translated': urllib.parse.quote_plus(v['Translated']),
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Expose-Headers': '*'
-            })
-
-        translated = text
-        if not target.startswith('en'):
-            translated = doTranslate(text, src, target)
-
-        filepath: str = doTTS(translated, target)
-
-        # store cache
-        cacheMap[cacheKey] = {
-            'filePath': filepath,
-            'Translated': translated
-        }
-
-        return FileResponse(filepath, 200, {
-            'X-Translated': urllib.parse.quote_plus(translated),
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': '*',
-            'Access-Control-Expose-Headers': '*'
-        })
-    except Exception as e:
-        print(e)
-        return Response(str(e), 500, {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': '*',
-            'Access-Control-Expose-Headers': '*'
-        })
 
 if __name__ == '__main__':
     uvicorn.run(app, host='0.0.0.0', port=8080)
